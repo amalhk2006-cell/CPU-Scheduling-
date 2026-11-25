@@ -5,16 +5,42 @@ import java.util.List;
 
 public class PriorityScheduler {
 
-    private final List<Process> readyQueue;  
+    public static final int DEFAULT_AGING_INTERVAL = 4;
+
+    private final List<Process> readyQueue;
+    private final int agingInterval;
 
     public PriorityScheduler() {
-        readyQueue = new ArrayList<>();
+        this(DEFAULT_AGING_INTERVAL);
     }
 
-    public void addProcess(Process process) {
-      if (process != null && process.getRemainingTime() > 0) {
+    public PriorityScheduler(int agingInterval) {
+        if (agingInterval <= 0) {
+            throw new IllegalArgumentException(
+                    "Aging interval must be greater than zero.");
+        }
+
+        this.agingInterval = agingInterval;
+        this.readyQueue = new ArrayList<>();
+    }
+
+    public void addProcess(Process process, int currentTime) {
+        if (process == null) {
+            throw new IllegalArgumentException("Process cannot be null.");
+        }
+        if (currentTime < 0) {
+            throw new IllegalArgumentException("Current time cannot be negative.");
+        }
+        if (process.getRemainingTime() <= 0) {
+            return;
+        }
+        if (readyQueue.contains(process)) {
+            throw new IllegalArgumentException(
+                    process.getId() + " is already in the Priority Queue.");
+        }
+
+        process.enterPriorityQueue(currentTime);
         readyQueue.add(process);
-      }
     }
 
     public boolean hasReadyProcesses() {
@@ -25,51 +51,61 @@ public class PriorityScheduler {
         return readyQueue.size();
     }
 
-    public Process selectNextProcess() {
+    public Process selectNextProcess(int currentTime) {
 
         if (readyQueue.isEmpty()) {
             return null;
         }
 
+        if (currentTime < 0) {
+            throw new IllegalArgumentException("Current time cannot be negative.");
+        }
+
         Process selected = Collections.min(
                 readyQueue,
-                Comparator.comparingInt(Process::getPriority)
-                        .thenComparingInt(Process::getArrivalTime)
-        );
+                Comparator.comparingInt(
+                        (Process process) -> process.getEffectivePriority(
+                                currentTime,
+                                agingInterval))
+                        .thenComparingInt(Process::getArrivalTime));
 
         readyQueue.remove(selected);
+        selected.leavePriorityQueue();
 
         return selected;
     }
 
     public ExecutionResult executeNextProcess(int currentTime) {
+        if (currentTime < 0) {
+            throw new IllegalArgumentException("Current time cannot be negative.");
+        }
 
-        Process currentProcess = selectNextProcess();
+        Process currentProcess = selectNextProcess(currentTime);
 
         if (currentProcess == null) {
             return null;
         }
 
-        int executionTime = currentProcess.getRemainingTime();
+        if (currentProcess.getFirstStartTime() == -1) {
+            currentProcess.setFirstStartTime(currentTime);
+        }
 
+        int executionTime = currentProcess.getRemainingTime();
         int endTime = currentTime + executionTime;
 
         currentProcess.setRemainingTime(0);
-
         currentProcess.setFinishTime(endTime);
 
         return new ExecutionResult(
                 currentProcess,
                 currentTime,
                 endTime,
-                executionTime
-        );
+                executionTime);
     }
 
     public List<Process> getReadyQueueSnapshot() {
         return Collections.unmodifiableList(
-                new ArrayList<>(readyQueue)
-        );
+                new ArrayList<>(readyQueue));
     }
 
     public static class ExecutionResult {
@@ -83,8 +119,7 @@ public class PriorityScheduler {
                 Process process,
                 int startTime,
                 int endTime,
-                int executionTime
-        ) {
+                int executionTime) {
             this.process = process;
             this.startTime = startTime;
             this.endTime = endTime;
@@ -108,4 +143,3 @@ public class PriorityScheduler {
         }
     }
 }
-
