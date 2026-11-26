@@ -158,6 +158,11 @@ public class RoundRobin {
         );
     }
 
+    /** Returns the next Tier 1 process without removing it from the queue. */
+    public Process peekNextProcess() {
+        return readyQueue.peek();
+    }
+
     /** A read-only copy of the processes still waiting in Tier 1. */
     public List<Process> getReadyQueueSnapshot() {
         return Collections.unmodifiableList(new ArrayList<>(readyQueue));

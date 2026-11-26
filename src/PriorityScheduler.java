@@ -75,6 +75,15 @@ public class PriorityScheduler {
         return selected;
     }
 
+    /** Returns the process that would be selected, without removing it. */
+    public Process peekNextProcess(int currentTime) {
+        if (readyQueue.isEmpty()) return null;
+        return Collections.min(readyQueue,
+                Comparator.comparingInt((Process process) ->
+                        process.getEffectivePriority(currentTime, agingInterval))
+                        .thenComparingInt(Process::getArrivalTime));
+    }
+
     public ExecutionResult executeNextProcess(int currentTime) {
         if (currentTime < 0) {
             throw new IllegalArgumentException("Current time cannot be negative.");
